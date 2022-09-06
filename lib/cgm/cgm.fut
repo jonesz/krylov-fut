@@ -14,12 +14,13 @@ entry matmul_f32 = matmul (+) (*) 0f32
 
 -- Conjugate Gradient Method
 -- https://en.wikipedia.org/wiki/Conjugate_gradient_method
+-- returns (x, original residual, new residual).
 
 -- ==
 -- entry: cgm
 -- input { [[ 4f32, 1f32 ], [ 1f32, 3f32 ]] [[ 1f32 ], [ 2f32 ]] [[ 2f32 ], [ 1f32 ]] }
 -- output { [[ 0.23564959f32, 0.3383686f32 ]] }
-entry cgm [n] (A: [n][n]f32) (b: [n][1]f32) (x: [n][1]f32): [n][1]f32 =
+entry cgm [n] (A: [n][n]f32) (b: [n][1]f32) (x: [n][1]f32): ([n][1]f32, [n][1]f32, [n][1]f32) =
 
   -- residual := b - Ax
   let residual = map2 (map2 (-)) b <| matmul_f32 A x
@@ -32,9 +33,15 @@ entry cgm [n] (A: [n][n]f32) (b: [n][1]f32) (x: [n][1]f32): [n][1]f32 =
     in numerator[0, 0] / denominator[0, 0] -- Both of these matrices should be [1][1].
 
   let xk = map2 (map2 (+)) x <| map (map (* alpha_k)) p0
-  -- let rk = map2 (map2 (-)) residual <| matmul_f32 (map (map (* alpha_k)) A) p0
+  let rk = map2 (map2 (-)) residual <| matmul_f32 (map (map (* alpha_k)) A) p0
 
-  in xk
+  in (xk, residual, rk)
 
   -- TODO: This is a single iteration: we can calculate the beta vector to the next direction.
   -- Ultimately, we need to determine what "residual" is and introduce a loop here.
+
+-- Calculation of beta: (rk1^T * rk1) / (rk^T * rk)
+entry beta [n] (rk: [n][1]f32) (rk1: [n][1]f32): f32 =
+    let numerator = matmul_f32 (transpose rk1) rk1
+    let denominator = matmul_f32 (transpose rk) rk
+    in numerator[0, 0] / denominator[0, 0]
