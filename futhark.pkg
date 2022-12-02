@@ -1,4 +1,4 @@
-package cgm
+package github.com/jonesz/cgm-fut
 
 require {
 }
