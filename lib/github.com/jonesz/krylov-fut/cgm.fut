@@ -25,10 +25,6 @@ entry beta [n] (rk: [n][1]f32) (rk1: [n][1]f32): f32 =
 -- Conjugate Gradient Method
 -- https://en.wikipedia.org/wiki/Conjugate_gradient_method
 -- Returns the value 'x' after 'r' iterations.
--- ==
--- entry: cgm
--- input { [[ 4f32, 1f32 ], [ 1f32, 3f32 ]] [[ 1f32 ], [ 2f32 ]] [[ 2f32 ], [ 1f32 ]] 1i64 }
--- output { [[ 0.23564959f32 ], [ 0.3383686f32 ]] }
 entry cgm [n] (A: [n][n]f32) (b: [n][1]f32) (x: [n][1]f32) (r: i64): [n][1]f32 =
 
 	let inner_loop (rk) (pk) (xk) =
