@@ -1,5 +1,6 @@
-package github.com/jonesz/krylov-futt
+package github.com/jonesz/krylov-fut
 
 require {
   github.com/diku-dk/complex 0.2.0 #19c5afb0931c4cfe4d8f2e9540ba01edd9460639
+  github.com/diku-dk/sparse 0.0.12 #0173e0a9111de865ca04f3c49bc7d29ba4806fa5
 }
