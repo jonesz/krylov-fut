@@ -1,5 +1,7 @@
 -- 2022, Ethan Jones <etn.jones@gmail.com>.
 
+import "symmetric"
+
 -- https://futhark-lang.org/examples/matrix-multiplication.html
 def matmul [n][m][p] 'a
            (add: a -> a -> a) (mul: a -> a -> a) (zero: a)
@@ -54,3 +56,20 @@ entry cgm [n] (A: [n][n]f32) (b: [n][1]f32) (x: [n][1]f32) (r: i64): [n][1]f32 =
 	
   let (_, _, xn) = outer_loop r0 p0 x
   in xn
+
+module type cgm_impl = {
+	--| Scalar type.
+	type t 
+
+	type~ mat[n]
+
+	val cgm [n] : mat[n] -> [n]t -> [n]t -> i64 -> [n]t
+}
+
+module mk_cgm_impl (A: symmetric_matrix) = {
+	type t = A.t
+	type~ mat[n] = A.mat[n]
+
+	def cgm [n] (A: mat[n]) (b: [n]t) (x: [n]t) (r: i64): [n]t = 
+		???
+}
