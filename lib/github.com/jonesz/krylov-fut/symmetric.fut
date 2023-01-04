@@ -15,6 +15,12 @@ module type symmetric_matrix = {
 
 	-- | Construct a symmetric matrix from a dense array.
 	val sym [n] : [n][n]t -> mat[n]
+
+	-- x * A
+	val vec_mul [n] : [n]t -> mat[n] -> [n]t
+
+	-- A * x
+	val mul_vec [n] : mat[n] -> [n]t -> [n]t
 }
 
 -- The number of unique elements for a symmetric `n by n` array.
@@ -48,6 +54,22 @@ module mk_symmetric_matrix (T: real) (R: ranking) = {
 		{ size = [],
 		  data = tabulate (elements n) (\p -> let (i, j) = R.unrank p in #[unsafe] arr[i, j])
 		}
+
+	-- x * A
+	def vec_mul [n] (x: [n]t) (A: mat[n]): [n]t =
+		map (\i -> 
+			map (\j -> 
+				T.((idx (i, j) A) * x[i])) 
+			(iota n) |> reduce_comm (T.+) (T.i64 0)) 
+			(iota n)
+
+	-- A * x
+	def mul_vec [n] (A: mat[n]) (x: [n]t): [n]t =
+		map (\i -> 
+			map (\j -> 
+				T.((idx (i, j) A) * x[j])) 
+			(iota n) |> reduce_comm (T.+) (T.i64 0)) 
+			(iota n)
 }
 
 module mk_symmetric_matrix_def (T: real) = 
