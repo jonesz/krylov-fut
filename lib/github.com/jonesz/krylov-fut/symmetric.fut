@@ -18,9 +18,6 @@ module type symmetric_matrix = {
 
 	val scale [n] : mat[n] -> t -> mat[n]
 
-	-- x * A
-	val vec_mul [n] : [n]t -> mat[n] -> [n]t
-
 	-- A * x
 	val mul_vec [n] : mat[n] -> [n]t -> [n]t
 }
@@ -60,15 +57,8 @@ module mk_symmetric_matrix (T: numeric) (R: ranking): symmetric_matrix with t = 
 	def scale [n] (A: mat[n]) (x: t): mat[n] =
 		A with data = map (T.* x) A.data
 
-	-- x * A
-	def vec_mul [n] (x: [n]t) (A: mat[n]): [n]t =
-		map (\i -> 
-			map (\j -> 
-				T.((idx (i, j) A) * x[i])) 
-			(iota n) |> reduce_comm (T.+) (T.i64 0)) 
-			(iota n)
-
-	-- A * x
+	-- A * x, x * A
+	-- NOTE: xA and Ax are just transposes of each other.
 	def mul_vec [n] (A: mat[n]) (x: [n]t): [n]t =
 		map (\i -> 
 			map (\j -> 

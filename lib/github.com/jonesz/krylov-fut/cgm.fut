@@ -90,7 +90,7 @@ module mk_cgm_impl (T: numeric) = {
 			-- ak := (r^T * r) / p^T * A * p
 				let alpha_k =
 					let n = map (\x -> (T.*) x x) rk |> reduce (T.+) (T.i64 0)
-					let d = vec_mul pk A |> map2 (T.*) pk |> reduce (T.+) (T.i64 0)
+					let d = mul_vec A pk |> map2 (T.*) pk |> reduce (T.+) (T.i64 0)
 					in n T./ d
 
 				let xk = map2 (T.+) xk <| map (T.* alpha_k) pk
