@@ -4,8 +4,8 @@
 
 -- | The module type of a symmetric matrix.
 module type symmetric_matrix = {
-	-- | The scalar type.
-	type t
+	include real
+
 	-- | The type of 'n' times 'n' symmetric matrices.
 	type~ mat[n]
 
@@ -15,6 +15,8 @@ module type symmetric_matrix = {
 
 	-- | Construct a symmetric matrix from a dense array.
 	val sym [n] : [n][n]t -> mat[n]
+
+	val scale [n] : mat[n] -> t -> mat[n]
 
 	-- x * A
 	val vec_mul [n] : [n]t -> mat[n] -> [n]t
@@ -54,6 +56,9 @@ module mk_symmetric_matrix (T: real) (R: ranking) = {
 		{ size = [],
 		  data = tabulate (elements n) (\p -> let (i, j) = R.unrank p in #[unsafe] arr[i, j])
 		}
+
+	def scale [n] (A: mat[n]) (x: t): mat[n] =
+		A with data = map (T.* x) A.data
 
 	-- x * A
 	def vec_mul [n] (x: [n]t) (A: mat[n]): [n]t =
