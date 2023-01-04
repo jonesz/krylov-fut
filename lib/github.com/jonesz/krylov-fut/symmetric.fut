@@ -4,8 +4,8 @@
 
 -- | The module type of a symmetric matrix.
 module type symmetric_matrix = {
-	include real
-
+	-- | The scalar type.
+	type t
 	-- | The type of 'n' times 'n' symmetric matrices.
 	type~ mat[n]
 
@@ -39,7 +39,7 @@ local module type ranking = {
 	val unrank : i64 -> (i64, i64)
 }
 
-module mk_symmetric_matrix (T: real) (R: ranking) = {
+module mk_symmetric_matrix (T: numeric) (R: ranking): symmetric_matrix with t = T.t = {
 	type t = T.t
 
 	type~ mat [n] =
@@ -77,7 +77,7 @@ module mk_symmetric_matrix (T: real) (R: ranking) = {
 			(iota n)
 }
 
-module mk_symmetric_matrix_def (T: real) = 
+module mk_symmetric_matrix_def (T: numeric) = 
 	mk_symmetric_matrix T {
 		def rank (i, j) =
 			elements i + j

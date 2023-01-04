@@ -63,45 +63,54 @@ module type cgm_impl = {
 
 	type~ mat[n]
 
-	val cgm [n] : mat[n] -> [n]t -> [n]t -> i64 -> [n]t
+	module sym : {
+		include symmetric_matrix with t = t with mat [n] = mat[n]
+	
+		val cgm [n] : mat[n] -> [n]t -> [n]t -> i64 -> [n]t
+	}
 }
 
-module mk_cgm_impl (S: symmetric_matrix) (T: real) = {
-	type t = S.t
-	type~ mat[n] = S.mat[n]
+module mk_cgm_impl (T: numeric) = {
+	type t = T.t
+
+	module sym = {
+		open (mk_symmetric_matrix_def T)
 
 	-- Compute the residual of b - Ax.
-	local def residual [n] (A: mat[n]) (b: [n]t) (x: [n]t): [n]t =
-		S.mul_vec A x |> map2 (S.-) b
+		local def residual [n] (A: mat[n]) (b: [n]t) (x: [n]t): [n]t =
+			mul_vec A x |> map2 (T.-) b
 
-	local def beta [n] (rk: [n]t) (rk1: [n]t): t =
-		let n = reduce_comm (S.+) (S.i64 0) (map2 (S.*) rk1 rk1)
-		let d = reduce_comm (S.+) (S.i64 0) (map2 (S.*) rk rk)
-		in n S./ d
+		local def beta [n] (rk: [n]t) (rk1: [n]t): t =
+			let n = reduce_comm (T.+) (T.i64 0) (map2 (T.*) rk1 rk1)
+			let d = reduce_comm (T.+) (T.i64 0) (map2 (T.*) rk rk)
+			in n T./ d
 
-	def cgm [n] (A: mat[n]) (b: [n]t) (x: [n]t) (r: i64): [n]t = 
-		let inner_loop (rk) (pk) (xk) =
+		def cgm [n] (A: mat[n]) (b: [n]t) (x: [n]t) (r: i64): [n]t = 
+			let inner_loop (rk) (pk) (xk) =
 			-- ak := (r^T * r) / p^T * A * p
-			let alpha_k =
-				let n = map (\x -> (S.*) x x) rk |> reduce (S.+) (S.i64 0)
-				let d = S.vec_mul pk A |> map2 (S.*) pk |> reduce (S.+) (S.i64 0)
-				in n S./ d
+				let alpha_k =
+					let n = map (\x -> (T.*) x x) rk |> reduce (T.+) (T.i64 0)
+					let d = vec_mul pk A |> map2 (T.*) pk |> reduce (T.+) (T.i64 0)
+					in n T./ d
 
-			let xk = map2 (S.+) xk <| map (S.* alpha_k) pk
-			let rk = map2 (S.-) rk <| S.mul_vec (S.scale A alpha_k) pk
+				let xk = map2 (T.+) xk <| map (T.* alpha_k) pk
+				let rk = map2 (T.-) rk <| mul_vec (scale A alpha_k) pk
 
-			in (xk, rk)
+				in (xk, rk)
 
-		let outer_loop_a r0 p0 x0 =
-			loop (rk, pk, xk) = (r0, p0, x0) for _i < r do
-				let (xk1, rk1) = inner_loop rk pk xk
-				let bk = beta rk rk1
-				let pk1 = map (S.* bk) pk |> map2 (S.+) rk1
-				in (rk1, pk1, xk1)
+			let outer_loop_a r0 p0 x0 =
+				loop (rk, pk, xk) = (r0, p0, x0) for _i < r do
+					let (xk1, rk1) = inner_loop rk pk xk
+					let bk = beta rk rk1
+					let pk1 = map (T.* bk) pk |> map2 (T.+) rk1
+					in (rk1, pk1, xk1)
 
-		let r0 = residual A b x
-		let p0 = r0
+			let r0 = residual A b x
+			let p0 = r0
 
-		let (_, _, xn) = outer_loop_a r0 p0 x
-		in xn
+			let (_, _, xn) = outer_loop_a r0 p0 x
+			in xn
+	}
+
+	type~ mat[n] = sym.mat[n]
 }
