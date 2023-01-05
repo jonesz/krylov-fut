@@ -31,6 +31,9 @@ module type symmetric_matrix = {
 
 	-- | Matrix multiplication with a dense matrix.
 	val smm_dense [n][p] : mat[n] -> [n][p]t -> [n][p]t
+
+	-- | Matrix multiplication with a dense matrix.
+	val dense_smm [n][p] : [p][n]t -> mat[n] -> [p][n]t
 }
 
 -- The number of unique elements for a symmetric `n by n` array.
@@ -100,6 +103,19 @@ module mk_symmetric_matrix (T: numeric) (R: ranking): symmetric_matrix with t = 
 				in reduce (T.+) (T.i64 0) <| map2 (T.*) r c) 
 			(iota p))
 		(iota n)
+
+	def dense_smm [n][p] (A: [p][n]t) (B: mat[n]): [p][n]t =
+		let row M i = map (\j -> M[i, j]) (iota n)
+		let col M i = map (\j -> idx (j, i) M) (iota n)
+
+		in map (\i -> 
+			let r = row A i
+			in map (\j ->
+				let c = col B j
+				in reduce (T.+) (T.i64 0) <| map2 (T.*) r c)
+					
+				(iota n))
+			(iota p)
 
 	def matmap f (sym: mat[]) =
 		sym with data = map f sym.data

@@ -24,3 +24,10 @@ entry smm_test [n] (A: [n][n]f32): [n][n]f32 =
 entry smm_dense_test [n] (A: [n][n]f32): [n][n]f32 =
 	let mat = S.sym A
 	in S.smm_dense mat A
+
+-- entry: dense_smm_test
+-- input { [[ 4f32, 1f32 ], [ 1f32, 3f32 ]] }
+-- output { [[ 17f32, 7f32 ], [ 7f32, 10f32 ]] }
+entry dense_smm_test [n] (A: [n][n]f32): [n][n]f32 =
+	let mat = S.sym A
+	in S.dense_smm A mat
