@@ -68,9 +68,6 @@ module mk_symmetric_matrix (T: numeric) (R: ranking): symmetric_matrix with t = 
 	def scale [n] (x: t) (A: mat[n]): mat[n] =
 		A with data = map (T.* x) A.data
 
-	def map f (sym: mat[]) =
-		sym with data = map f sym.data
-
 	-- A * x, x * A
 	-- NOTE: xA and Ax are just transposes of each other.
 	def mul_vec [n] (A: mat[n]) (x: [n]t): [n]t =
@@ -85,6 +82,9 @@ module mk_symmetric_matrix (T: numeric) (R: ranking): symmetric_matrix with t = 
 	
 	def smm_dense [n][p] (A: mat[n]) (x: [n][p]t): [n][p]t =
 		???
+
+	def map f (sym: mat[]) =
+		sym with data = map f sym.data
 }
 
 module mk_symmetric_matrix_def (T: numeric) = 
