@@ -18,8 +18,14 @@ module type symmetric_matrix = {
 
 	val scale [n] : mat[n] -> t -> mat[n]
 
-	-- A * x
+		-- A * x
 	val mul_vec [n] : mat[n] -> [n]t -> [n]t
+
+	-- | Matrix multiplication.
+	val smm [n] : mat[n] -> mat[n] -> [n][n]t
+
+	-- | Matrix multiplication with a dense matrix.
+	val smm_dense [n][p] : mat[n] -> [n][p]t -> [n][p]t
 }
 
 -- The number of unique elements for a symmetric `n by n` array.
@@ -65,6 +71,12 @@ module mk_symmetric_matrix (T: numeric) (R: ranking): symmetric_matrix with t = 
 				T.((idx (i, j) A) * x[j])) 
 			(iota n) |> reduce_comm (T.+) (T.i64 0)) 
 			(iota n)
+
+	def smm [n] (A: mat[n]) (x: mat[n]): [n][n]t =
+		???
+	
+	def smm_dense [n][p] (A: mat[n]) (x: [n][p]t): [n][p]t =
+		???
 }
 
 module mk_symmetric_matrix_def (T: numeric) = 
