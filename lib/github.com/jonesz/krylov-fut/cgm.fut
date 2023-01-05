@@ -99,7 +99,7 @@ module mk_cgm_impl (T: numeric) = {
 					in n T./ d
 
 				let xk = map2 (T.+) xk <| map (T.* alpha_k) pk
-				let rk = map2 (T.-) rk <| mul_vec (scale A alpha_k) pk
+				let rk = map2 (T.-) rk <| mul_vec (scale alpha_k A) pk
 
 				in (xk, rk)
 

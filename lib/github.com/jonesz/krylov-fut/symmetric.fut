@@ -16,7 +16,7 @@ module type symmetric_matrix = {
 	-- | Construct a symmetric matrix from a dense array.
 	val sym [n] : [n][n]t -> mat[n]
 
-	val scale [n] : mat[n] -> t -> mat[n]
+	val scale [n] : t -> mat[n] -> mat[n]
 
 		-- A * x
 	val mul_vec [n] : mat[n] -> [n]t -> [n]t
@@ -60,7 +60,7 @@ module mk_symmetric_matrix (T: numeric) (R: ranking): symmetric_matrix with t = 
 		  data = tabulate (elements n) (\p -> let (i, j) = R.unrank p in #[unsafe] arr[i, j])
 		}
 
-	def scale [n] (A: mat[n]) (x: t): mat[n] =
+	def scale [n] (x: t) (A: mat[n]): mat[n] =
 		A with data = map (T.* x) A.data
 
 	-- A * x, x * A
