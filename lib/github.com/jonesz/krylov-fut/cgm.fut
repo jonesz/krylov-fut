@@ -90,11 +90,10 @@ module mk_cgm_impl (T: numeric) = {
 			-- ak := (r^T * r) / p^T * A * p
 				let alpha_k =
     				let n = matmul_t (transpose rk) rk
-					 let d = matmul_t (dense_smm (transpose pk) A) pk
+					let d = matmul_t (dense_smm (transpose pk) A) pk
     				in n[0, 0] T./ d[0, 0] -- Both of these matrices should be [1][1].
 
   				let xk = map2 (map2 (T.+)) xk <| map (map (T.* alpha_k)) pk
-				-- let rk = map2 (map2 (T.-)) rk <| matmul_t (map (map (T.* alpha_k)) A) pk
 				let rk = map2 (map2 (T.-)) rk <| smm_dense (scale alpha_k A) pk
 
 				in (xk, rk)
