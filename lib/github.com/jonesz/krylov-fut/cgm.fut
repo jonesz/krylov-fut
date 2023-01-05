@@ -31,21 +31,19 @@ module type cgm_impl = {
 module mk_cgm_impl (T: numeric) = {
 	type t = T.t
 
+	let matmul_t = matmul (T.+) (T.*) (T.i64 0)
+
+	let beta [n] (rk: [n][1]t) (rk1: [n][1]t): t =
+    	let n = matmul_t (transpose rk1) rk1
+    	let d = matmul_t (transpose rk) rk
+    	in n[0, 0] T./ d[0, 0] -- Both of these matrices should be [1][1].
+
 	-- | Working with a dense representation.
 	module dense = {
 		type~ mat[n] = [n][n]t
 
-		let matmul_t = matmul (T.+) (T.*) (T.i64 0)
-
-		-- Compute the residual of b - Ax.
 		let residual [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t): [n][1]t =
 			matmul_t A x |> map2 (map2 (T.-)) b
-
-		-- Calculation of beta: (rk1^T * rk1) / (rk^T * rk)
-		let beta [n] (rk: [n][1]t) (rk1: [n][1]t): t =
-    		let n = matmul_t (transpose rk1) rk1
-    		let d = matmul_t (transpose rk) rk
-    		in n[0, 0] T./ d[0, 0] -- Both of these matrices should be [1][1].
 
 		def cgm [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t) (r: i64): [n][1]t = 
 			let inner_loop (rk) (pk) (xk) =
@@ -86,11 +84,6 @@ module mk_cgm_impl (T: numeric) = {
 	-- Compute the residual of b - Ax.
 		local def residual [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t): [n][1]t =
 			smm_dense A x |> map2 (map2 (T.-)) b
-
-		local def beta [n] (rk: [n][1]t) (rk1: [n][1]t): t =
-    		let n = matmul_t (transpose rk1) rk1
-    		let d = matmul_t (transpose rk) rk
-    		in n[0, 0] T./ d[0, 0] -- Both of these matrices should be [1][1].
 
 		def cgm [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t) (r: i64): [n][1]t = 
 			let inner_loop (rk) (pk) (xk) =
