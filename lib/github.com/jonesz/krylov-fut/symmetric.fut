@@ -21,7 +21,7 @@ module type symmetric_matrix = {
 	val scale [n] : t -> mat[n] -> mat[n]
 
 	-- | Map a function across the elements of the matrix.
-	val map [n] : (t -> t) -> mat[n] -> mat[n]
+	val matmap [n] : (t -> t) -> mat[n] -> mat[n]
 
 		-- A * x
 	val mul_vec [n] : mat[n] -> [n]t -> [n]t
@@ -77,13 +77,31 @@ module mk_symmetric_matrix (T: numeric) (R: ranking): symmetric_matrix with t = 
 			(iota n) |> reduce_comm (T.+) (T.i64 0)) 
 			(iota n)
 
-	def smm [n] (A: mat[n]) (x: mat[n]): [n][n]t =
-		???
-	
-	def smm_dense [n][p] (A: mat[n]) (x: [n][p]t): [n][p]t =
-		???
+	def smm [n] (A: mat[n]) (B: mat[n]): [n][n]t =
+		let row M i = map (\j -> idx (i, j) M) (iota n)
+		let col M i = map (\j -> idx (j, i) M) (iota n)
 
-	def map f (sym: mat[]) =
+		in map (\i -> 
+			let r = row A i
+			in map (\j -> 
+				let c = col B j
+				in reduce (T.+) (T.i64 0) <| map2 (T.*) r c) 
+			(iota n))
+		(iota n)	
+
+	def smm_dense [n][p] (A: mat[n]) (B: [n][p]t): [n][p]t =
+		let row M i = map (\j -> idx (i, j) M) (iota n)
+		let col M i = map (\j -> M[j, i]) (iota n)
+
+		in map (\i -> 
+			let r = row A i
+			in map (\j -> 
+				let c = col B j
+				in reduce (T.+) (T.i64 0) <| map2 (T.*) r c) 
+			(iota p))
+		(iota n)
+
+	def matmap f (sym: mat[]) =
 		sym with data = map f sym.data
 }
 
