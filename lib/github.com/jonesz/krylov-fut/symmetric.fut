@@ -2,6 +2,8 @@
 --
 -- A symmetric matrix is a square matrix where A = A^T.
 
+import "../../diku-dk/linalg/linalg"
+
 -- | The module type of a symmetric matrix.
 module type symmetric_matrix = {
 	-- | The scalar type.
@@ -50,7 +52,7 @@ local module type ranking = {
 	val unrank : i64 -> (i64, i64)
 }
 
-module mk_symmetric_matrix (T: numeric) (R: ranking): symmetric_matrix with t = T.t = {
+module mk_symmetric_matrix (T: field) (R: ranking): symmetric_matrix with t = T.t = {
 	type t = T.t
 
 	type~ mat [n] =
@@ -121,7 +123,7 @@ module mk_symmetric_matrix (T: numeric) (R: ranking): symmetric_matrix with t = 
 		sym with data = map f sym.data
 }
 
-module mk_symmetric_matrix_def (T: numeric) = 
+module mk_symmetric_matrix_def (T: field) = 
 	mk_symmetric_matrix T {
 		def rank (i, j) =
 			elements i + j
