@@ -16,7 +16,12 @@ module type symmetric_matrix = {
 	-- | Construct a symmetric matrix from a dense array.
 	val sym [n] : [n][n]t -> mat[n]
 
+	-- | Scale elements. Given a matrix and a scale value 'v', the
+	-- function returns a new matrix with the elements scaled by 'v'.
 	val scale [n] : t -> mat[n] -> mat[n]
+
+	-- | Map a function across the elements of the matrix.
+	val map [n] : (t -> t) -> mat[n] -> mat[n]
 
 		-- A * x
 	val mul_vec [n] : mat[n] -> [n]t -> [n]t
@@ -62,6 +67,9 @@ module mk_symmetric_matrix (T: numeric) (R: ranking): symmetric_matrix with t = 
 
 	def scale [n] (x: t) (A: mat[n]): mat[n] =
 		A with data = map (T.* x) A.data
+
+	def map f (sym: mat[]) =
+		sym with data = map f sym.data
 
 	-- A * x, x * A
 	-- NOTE: xA and Ax are just transposes of each other.
