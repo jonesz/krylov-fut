@@ -42,8 +42,8 @@ module mk_hermitian_matrix (T: complex) (R: ranking): hermitian_matrix with t = 
 		}
 
 	def idx [n] (i, j) (herm: mat[n]) =
-		let (i, j) = if i > j then (j, i) else (i, j)
-		let dt = #[unsafe] herm.data[R.rank (i, j)]
+		let (a, b) = if i > j then (j, i) else (i, j)
+		let dt = #[unsafe] herm.data[R.rank (a, b)]
 		in if i > j then T.conj dt else dt
 
 	def herm [n] (arr: [n][n]t): mat[n] =
