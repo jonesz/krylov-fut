@@ -25,17 +25,14 @@ module type symmetric_matrix = {
 	-- | Map a function across the elements of the matrix.
 	val matmap [n] : (t -> t) -> mat[n] -> mat[n]
 
-		-- A * x
-	val mul_vec [n] : mat[n] -> [n]t -> [n]t
+	-- | symmetric, symmetric matrix multiplication.
+	val ssmm [n] : mat[n] -> mat[n] -> [n][n]t
 
-	-- | Matrix multiplication.
-	val smm [n] : mat[n] -> mat[n] -> [n][n]t
+	-- | symmetric, dense matrix multiplication.
+	val sdmm [n][p] : mat[n] -> [n][p]t -> [n][p]t
 
-	-- | Matrix multiplication with a dense matrix.
-	val smm_dense [n][p] : mat[n] -> [n][p]t -> [n][p]t
-
-	-- | Matrix multiplication with a dense matrix.
-	val dense_smm [n][p] : [p][n]t -> mat[n] -> [p][n]t
+	-- | dense, symmetric matrix multiplication.
+	val dsmm [n][p] : [p][n]t -> mat[n] -> [p][n]t
 }
 
 -- The number of unique elements for a symmetric `n by n` array.
@@ -73,16 +70,7 @@ module mk_symmetric_matrix (T: field) (R: ranking): symmetric_matrix with t = T.
 	def scale [n] (x: t) (A: mat[n]): mat[n] =
 		A with data = map (T.* x) A.data
 
-	-- A * x, x * A
-	-- NOTE: xA and Ax are just transposes of each other.
-	def mul_vec [n] (A: mat[n]) (x: [n]t): [n]t =
-		map (\i -> 
-			map (\j -> 
-				T.((idx (i, j) A) * x[j])) 
-			(iota n) |> reduce_comm (T.+) (T.i64 0)) 
-			(iota n)
-
-	def smm [n] (A: mat[n]) (B: mat[n]): [n][n]t =
+	def ssmm [n] (A: mat[n]) (B: mat[n]): [n][n]t =
 		let row M i = map (\j -> idx (i, j) M) (iota n)
 		let col M i = map (\j -> idx (j, i) M) (iota n)
 
@@ -94,7 +82,7 @@ module mk_symmetric_matrix (T: field) (R: ranking): symmetric_matrix with t = T.
 			(iota n))
 		(iota n)	
 
-	def smm_dense [n][p] (A: mat[n]) (B: [n][p]t): [n][p]t =
+	def sdmm [n][p] (A: mat[n]) (B: [n][p]t): [n][p]t =
 		let row M i = map (\j -> idx (i, j) M) (iota n)
 		let col M i = map (\j -> M[j, i]) (iota n)
 
@@ -106,7 +94,7 @@ module mk_symmetric_matrix (T: field) (R: ranking): symmetric_matrix with t = T.
 			(iota p))
 		(iota n)
 
-	def dense_smm [n][p] (A: [p][n]t) (B: mat[n]): [p][n]t =
+	def dsmm [n][p] (A: [p][n]t) (B: mat[n]): [p][n]t =
 		let row M i = map (\j -> M[i, j]) (iota n)
 		let col M i = map (\j -> idx (j, i) M) (iota n)
 
