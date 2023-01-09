@@ -12,53 +12,50 @@ local def matmul [n][m][p] 'a
              (transpose B))
       A
 
-module type cgm_impl = {
-	--| Scalar type.
-	type t 
-
-	type~ mat[n]
+module type cgm = {
+	type t
 
 	module dense : {
 		type~ mat[n] = [n][n]t
 		val cgm [n] : mat[n] -> [n][1]t -> [n][1]t -> i64 -> [n][1]t
 	}
 
-	module sym : {
-		include symmetric_matrix with t = t with mat [n] = mat[n]
+	module sparse : {
+		include symmetric_matrix with t = t
 		val cgm [n] : mat[n] -> [n][1]t -> [n][1]t -> i64 -> [n][1]t
 	}
 }
 
-module mk_cgm_impl (T: field) = {
+module mk_cgm_real(T: field): cgm with t = T.t = {
 	type t = T.t
 
-	let matmul_t = matmul (T.+) (T.*) (T.i64 0)
+	-- dense * dense matrix multiply.
+	let ddmm = matmul (T.+) (T.*) (T.i64 0)
 
 	let beta [n] (rk: [n][1]t) (rk1: [n][1]t): t =
-    	let n = matmul_t (transpose rk1) rk1
-    	let d = matmul_t (transpose rk) rk
-    	in n[0, 0] T./ d[0, 0] -- Both of these matrices should be [1][1].
+    	let n = ddmm (transpose rk1) rk1
+    	let d = ddmm (transpose rk) rk
+    	in n[0, 0] T./ d[0, 0]
 
-	-- | Working with a dense representation.
 	module dense = {
 		type~ mat[n] = [n][n]t
 
-		let residual [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t): [n][1]t =
-			matmul_t A x |> map2 (map2 (T.-)) b
+		def residual [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t): [n][1]t =
+			ddmm A x |> map2 (map2 (T.-)) b
 
 		def cgm [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t) (r: i64): [n][1]t = 
 			let inner_loop (rk) (pk) (xk) =
 				-- ak := (r^T * r) / p^T * A * p
   				let alpha_k = 
-    				let n = matmul_t (transpose rk) rk
-    				let d = matmul_t (matmul_t (transpose pk) A) pk
-    				in n[0, 0] T./ d[0, 0] -- Both of these matrices should be [1][1].
+    				let n = ddmm (transpose rk) rk
+    				let d = ddmm (ddmm (transpose pk) A) pk
+    				in n[0, 0] T./ d[0, 0]
 		
-				-- See note in "Explicit residual calculation". 
-				-- TODO: Implement the explicit/implicit residual calculations with
-				-- a match on a sum type.
+				-- TODO: According to https://www.cs.cmu.edu/~quake-papers/painless-conjugate-gradient.pdf
+				-- we want to outright calculate the residual every so-odd iterations; see page 14, Eq. 10,
+				-- Eq. 13. 
   				let xk = map2 (map2 (T.+)) xk <| map (map (T.* alpha_k)) pk
-				let rk = map2 (map2 (T.-)) rk <| matmul_t (map (map (T.* alpha_k)) A) pk
+				let rk = map2 (map2 (T.-)) rk <| ddmm (map (map (T.* alpha_k)) A) pk
 				in (xk, rk)
 
   			let outer_loop r0 p0 x0 = 
@@ -76,27 +73,25 @@ module mk_cgm_impl (T: field) = {
   			in xn
 	}
 
-	-- | Working with a symmetric representation.
-	module sym = {
+	module sparse = {
 		open (mk_symmetric_matrix_def T)
 
-		let matmul_t = matmul (T.+) (T.*) (T.i64 0)
-
-	-- Compute the residual of b - Ax.
-		local def residual [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t): [n][1]t =
-			smm_dense A x |> map2 (map2 (T.-)) b
+		def residual [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t): [n][1]t =
+			sdmm A x |> map2 (map2 (T.-)) b
 
 		def cgm [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t) (r: i64): [n][1]t = 
 			let inner_loop (rk) (pk) (xk) =
 			-- ak := (r^T * r) / p^T * A * p
 				let alpha_k =
-    				let n = matmul_t (transpose rk) rk
-					 let d = matmul_t (dense_smm (transpose pk) A) pk
-    				in n[0, 0] T./ d[0, 0] -- Both of these matrices should be [1][1].
+					let n = ddmm (transpose rk) rk
+					let d = ddmm (dsmm (transpose pk) A) pk
+    				in n[0, 0] T./ d[0, 0]
 
+				-- TODO: According to https://www.cs.cmu.edu/~quake-papers/painless-conjugate-gradient.pdf
+				-- we want to outright calculate the residual every so-odd iterations; see page 14, Eq. 10,
+				-- Eq. 13. 
   				let xk = map2 (map2 (T.+)) xk <| map (map (T.* alpha_k)) pk
-				-- let rk = map2 (map2 (T.-)) rk <| matmul_t (map (map (T.* alpha_k)) A) pk
-				let rk = map2 (map2 (T.-)) rk <| smm_dense (scale alpha_k A) pk
+				let rk = map2 (map2 (T.-)) rk <| sdmm (scale alpha_k A) pk
 
 				in (xk, rk)
 
@@ -113,6 +108,4 @@ module mk_cgm_impl (T: field) = {
 			let (_, _, xn) = outer_loop_a r0 p0 x
 			in xn
 	}
-
-	type~ mat[n] = sym.mat[n]
 }
