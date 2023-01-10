@@ -28,9 +28,6 @@ module type hermitian_matrix = {
 
 	-- | dense, hermitian matrix multiplication.
 	val dsmm [n][p] : [p][n]t -> mat[n] -> [p][n]t
-
-	-- | Compute the conjugate transpose of a hermitian matrix.
-	val conj_transpose [n] : mat[n] -> mat[n]
 }
 
 -- The number of unique elements for a symmetric `n by n` array.
@@ -108,9 +105,6 @@ module mk_hermitian_matrix (T: complex) (R: ranking): hermitian_matrix with t = 
 
 	def matmap [n] f (A: mat[]): [n][n]t =
 		map (\i -> map (\j -> (idx (i, j) A) |> f) (iota n)) (iota n)
-
-	def conj_transpose [n] (A: mat[n]): mat[n] =
-		A with data = map T.conj A.data
 }
 
 module mk_hermitian_matrix_def (T: complex) =
