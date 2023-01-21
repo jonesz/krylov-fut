@@ -1,220 +1,85 @@
--- 2022, Ethan Jones <etn.jones@gmail.com>.
-import "symmetric"
-import "hermitian"
 import "../../diku-dk/linalg/linalg"
-import "../../diku-dk/complex/complex"
+import "../../diku-dk/sparse/compressed"
 
--- https://futhark-lang.org/examples/matrix-multiplication.html
-local def matmul [n][m][p] 'a
-           (add: a -> a -> a) (mul: a -> a -> a) (zero: a)
-           (A: [n][m]a) (B: [m][p]a) : [n][p]a =
-  map (\A_row ->
-         map (\B_col ->
-                reduce add zero (map2 mul A_row B_col))
-             (transpose B))
-      A
-
-module type cgm_real = {
+module type cgm = {
 	type t
+	type~ mat[n]
 
-	module dense : {
-		type~ mat[n] = [n][n]t
-		val cgm [n] : mat[n] -> [n][1]t -> [n][1]t -> i64 -> [n][1]t
-	}
+	type end_criteria = #iterations i64 | #residual t 
 
-	module sparse : {
-		include symmetric_matrix with t = t
-		val cgm [n] : mat[n] -> [n][1]t -> [n][1]t -> i64 -> [n][1]t
-	}
+	val sparse [nnz] : (n: i64) -> [nnz](i64, i64, t) -> mat[n]
+	val cgm [n] : mat[n] -> [n]t -> [n]t -> end_criteria -> [n]t
 }
 
-module type cgm_complex = {
-	type t
-
-	module dense : {
-		type~ mat[n] = [n][n]t
-		val cgm [n] : mat[n] -> [n][1]t -> [n][1]t -> i64 -> [n][1]t
-	}
-
-	module sparse : {
-		include hermitian_matrix with t = t
-		val cgm [n] : mat[n] -> [n][1]t -> [n][1]t -> i64 -> [n][1]t
-	}
-}
-
-module mk_cgm_real(T: field): cgm_real with t = T.t = {
+module mk_cgm_real(T: field): cgm with t = T.t = {
 	type t = T.t
+	type end_criteria = #iterations i64 | #residual t 
 
-	-- dense * dense matrix multiply.
-	let ddmm = matmul (T.+) (T.*) (T.i64 0)
-
-	let beta [n] (rk: [n][1]t) (rk1: [n][1]t): t =
-    	let n = ddmm (transpose rk1) rk1
-    	let d = ddmm (transpose rk) rk
-    	in n[0, 0] T./ d[0, 0]
-
-	module dense = {
-		type~ mat[n] = [n][n]t
-
-		def residual [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t): [n][1]t =
-			ddmm A x |> map2 (map2 (T.-)) b
-
-		def cgm [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t) (r: i64): [n][1]t = 
-			let inner_loop (rk) (pk) (xk) =
-				-- ak := (r^T * r) / p^T * A * p
-  				let alpha_k = 
-    				let n = ddmm (transpose rk) rk
-    				let d = ddmm (ddmm (transpose pk) A) pk
-    				in n[0, 0] T./ d[0, 0]
-		
-				-- TODO: According to https://www.cs.cmu.edu/~quake-papers/painless-conjugate-gradient.pdf
-				-- we want to outright calculate the residual every so-odd iterations; see page 14, Eq. 10,
-				-- Eq. 13. 
-  				let xk = map2 (map2 (T.+)) xk <| map (map (T.* alpha_k)) pk
-				let rk = map2 (map2 (T.-)) rk <| ddmm (map (map (T.* alpha_k)) A) pk
-				in (xk, rk)
-
-  			let outer_loop r0 p0 x0 = 
-				loop (rk, pk, xk) = (r0, p0, x0) for _i < r do
-  					let (xk1, rk1) = inner_loop rk pk xk
-					let bk = beta rk rk1
-					let pk1 = map (map (T.* bk)) pk |> map2 (map2 (T.+)) rk1 
-					in (rk1, pk1, xk1)
-
-  			-- r0 := b - Ax
-  			let r0 = residual A b x
-  			let p0 = r0
+	open (mk_compressed T)
+	type~ mat[n] = sr.mat[n][n]
 	
-  			let (_, _, xn) = outer_loop r0 p0 x
-  			in xn
-	}
+	def sparse [nnz] (n: i64) (coord: [nnz](i64, i64, t)): mat[n] =
+		sr.sparse n n coord
 
-	module sparse = {
-		open (mk_symmetric_matrix_def T)
+	def cgm [n] (A: mat[n]) (x: [n]t) (b: [n]t) (c: end_criteria): [n]t =
 
-		def residual [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t): [n][1]t =
-			sdmm A x |> map2 (map2 (T.-)) b
+		-- b - Ax.
+		let explicit_residual (A: mat[n]) (x: [n]t) (b: [n]t): [n]t =		
+			sr.smvm A x |> map2 (T.-) b
 
-		def cgm [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t) (r: i64): [n][1]t = 
-			let inner_loop (rk) (pk) (xk) =
-			-- ak := (r^T * r) / p^T * A * p
-				let alpha_k =
-					let n = ddmm (transpose rk) rk
-					let d = ddmm (dsmm (transpose pk) A) pk
-    				in n[0, 0] T./ d[0, 0]
+		-- (rk1^T * rk1) / (rk^T * rk)
+		let beta rk rk1 = 
+			let dp x y = map2 (T.*) x y |> reduce (T.+) (T.i64 0)
+			in (dp rk1 rk1) T./ (dp rk rk)
 
-				-- TODO: According to https://www.cs.cmu.edu/~quake-papers/painless-conjugate-gradient.pdf
-				-- we want to outright calculate the residual every so-odd iterations; see page 14, Eq. 10,
-				-- Eq. 13. 
-  				let xk = map2 (map2 (T.+)) xk <| map (map (T.* alpha_k)) pk
-				let rk = map2 (map2 (T.-)) rk <| sdmm (scale alpha_k A) pk
-
-				in (xk, rk)
-
-			let outer_loop_a r0 p0 x0 =
-				loop (rk, pk, xk) = (r0, p0, x0) for _i < r do
-					let (xk1, rk1) = inner_loop rk pk xk
-					let bk = beta rk rk1
-					let pk1 = map (map (T.* bk)) pk |> map2 (map2 (T.+)) rk1 
-					in (rk1, pk1, xk1)
-
-			let r0 = residual A b x
-			let p0 = r0
-
-			let (_, _, xn) = outer_loop_a r0 p0 x
-			in xn
-	}
-}
-
-module mk_cgm_complex(T: complex): cgm_complex with t = T.t = {
-	type t = T.t
-
-	-- dense * dense matrix multiply.
-	let ddmm = matmul (T.+) (T.*) (T.i64 0)
-
-	module dense = {
-		type~ mat[n] = [n][n]t
-
-		let conj_transpose a = map (map T.conj) a |> transpose
-
-		def beta [n] (rk: [n][1]t) (rk1: [n][1]t): t =
-    		let n = ddmm (conj_transpose rk1) rk1
-    		let d = ddmm (conj_transpose rk) rk
-    		in n[0, 0] T./ d[0, 0]
-
-		def residual [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t): [n][1]t =
-			ddmm A x |> map2 (map2 (T.-)) b
-
-		def cgm [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t) (r: i64): [n][1]t = 
-			let inner_loop (rk) (pk) (xk) =
-				-- ak := (r^T * r) / p^T * A * p
-  				let alpha_k = 
-    				let n = ddmm (conj_transpose rk) rk
-    				let d = ddmm (ddmm (conj_transpose pk) A) pk
-    				in n[0, 0] T./ d[0, 0]
+		let proj_krylov (rk) (pk) (xk) =
+			-- A * pk
+			let Apk = sr.smvm A pk
 		
-				-- TODO: According to https://www.cs.cmu.edu/~quake-papers/painless-conjugate-gradient.pdf
-				-- we want to outright calculate the residual every so-odd iterations; see page 14, Eq. 10,
-				-- Eq. 13. 
-  				let xk = map2 (map2 (T.+)) xk <| map (map (T.* alpha_k)) pk
-				let rk = map2 (map2 (T.-)) rk <| ddmm (map (map (T.* alpha_k)) A) pk
-				in (xk, rk)
+			-- alpha_k := (r^T * r) / p^T * A * p
+			let alpha_k =
+				let n = map2 (T.*) rk rk |> reduce (T.+) (T.i64 0)
+				let d = Apk -- A is real symmetric: xA = (Ax)^T.
+					|> map2 (T.*) pk 
+					|> reduce (T.+) (T.i64 0)
+				in n T./ d
 
-  			let outer_loop r0 p0 x0 = 
-				loop (rk, pk, xk) = (r0, p0, x0) for _i < r do
-  					let (xk1, rk1) = inner_loop rk pk xk
-					let bk = beta rk rk1
-					let pk1 = map (map (T.* bk)) pk |> map2 (map2 (T.+)) rk1 
-					in (rk1, pk1, xk1)
+			-- xk1 = xk + alpha * pk.
+			let xk1 = map (T.* alpha_k) pk |> map2 (T.+) xk
+			-- rk1 = rk - alpha_k * A * pk.
+			let rk1 = map (T.* alpha_k) Apk |> map2 (T.-) rk
 
-  			-- r0 := b - Ax
-  			let r0 = residual A b x
-  			let p0 = r0
-	
-  			let (_, _, xn) = outer_loop r0 p0 x
-  			in xn
-	}
+			in (xk1, rk1)
 
-	module sparse = {
-		open (mk_hermitian_matrix_def T)
+		-- Each loop is required to have the same (_, _, _, _) parameter
+		-- structure; hopefully (T.i64 0) will compile down to a no-op.
 
-		let conj_transpose a = map (map T.conj) a |> transpose
+		-- Compute r iterations.
+		let loop_iter r0 p0 x0 r = 
+			loop (rk, pk, xk, _rk_mag) = (r0, p0, x0, (T.i64 0)) for _i < r do
+				let (xk1, rk1) = proj_krylov rk pk xk
+				let bk = beta rk rk1
+				-- pk1 = rk1 + bk * pk
+				let pk1 = map (T.* bk) pk |> map2 (T.+) rk1
+				in (rk1, pk1, xk1, (T.i64 0))
 
-		def beta [n] (rk: [n][1]t) (rk1: [n][1]t): t =
-    		let n = ddmm (conj_transpose rk1) rk1
-    		let d = ddmm (conj_transpose rk) rk
-    		in n[0, 0] T./ d[0, 0]
+		
+		-- Loop until a residual < r is found.
+		let loop_residual r0 p0 x0 r =
+			loop (rk, pk, xk, rk_mag) = (r0, p0, x0, reduce (T.+) (T.i64 0) r0) while (T.<) r rk_mag do
+				let (xk1, rk1) = proj_krylov rk pk xk
+				let bk = beta rk rk1
+				-- pk1 = rk1 + bk * pk
+				let pk1 = map (T.* bk) pk |> map2 (T.+) rk1
+				let rk_mag1 = reduce (T.+) (T.i64 0) rk1
+				in (rk1, pk1, xk1, rk_mag1)
+					
+		let r0 = explicit_residual A x b
+		let p0 = r0
+		let x0 = x
 
-		def residual [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t): [n][1]t =
-			sdmm A x |> map2 (map2 (T.-)) b
-
-		def cgm [n] (A: mat[n]) (b: [n][1]t) (x: [n][1]t) (r: i64): [n][1]t = 
-			let inner_loop (rk) (pk) (xk) =
-			-- ak := (r^T * r) / p^T * A * p
-				let alpha_k =
-					let n = ddmm (conj_transpose rk) rk
-					let d = ddmm (dsmm (conj_transpose pk) A) pk
-    				in n[0, 0] T./ d[0, 0]
-
-				-- TODO: According to https://www.cs.cmu.edu/~quake-papers/painless-conjugate-gradient.pdf
-				-- we want to outright calculate the residual every so-odd iterations; see page 14, Eq. 10,
-				-- Eq. 13. 
-  				let xk = map2 (map2 (T.+)) xk <| map (map (T.* alpha_k)) pk
-				let rk = map2 (map2 (T.-)) rk <| ddmm (scale alpha_k A) pk
-
-				in (xk, rk)
-
-			let outer_loop_a r0 p0 x0 =
-				loop (rk, pk, xk) = (r0, p0, x0) for _i < r do
-					let (xk1, rk1) = inner_loop rk pk xk
-					let bk = beta rk rk1
-					let pk1 = map (map (T.* bk)) pk |> map2 (map2 (T.+)) rk1 
-					in (rk1, pk1, xk1)
-
-			let r0 = residual A b x
-			let p0 = r0
-
-			let (_, _, xn) = outer_loop_a r0 p0 x
-			in xn
-	}
+		let (_, _, xn, _) = match c
+			case #iterations r -> loop_iter r0 p0 x0 r
+			case #residual r -> loop_residual r0 p0 x0 r
+		in xn
 }
