@@ -1,19 +1,17 @@
-TEST_FILES = \
-	lib/github.com/jonesz/krylov-fut/symmetric_test.fut \
-	lib/github.com/jonesz/krylov-fut/cgm_test.fut \
-	lib/github.com/jonesz/krylov-fut/hermitian_test.fut
-
-TEST_JUNK = \
-	lib/github.com/jonesz/krylov-fut/symmetric_test \
+TEST_FRAGMENTS = \
 	lib/github.com/jonesz/krylov-fut/cgm_test \
-	lib/github.com/jonesz/krylov-fut/hermitian_test \
 	lib/github.com/jonesz/krylov-fut/*.c \
 	lib/github.com/jonesz/krylov-fut/*.fut.* \
 
-.PHONY: clean test
+.PHONY: check test clean
+
+all: check test
+
+check:
+	futhark check lib/github.com/jonesz/krylov-fut/cgm.fut
 
 test:
-	futhark test $(TEST_FILES)
+	futhark test lib/github.com/jonesz/krylov-fut/cgm_test.fut
 
 clean:	
-	$(RM) $(TEST_JUNK)
+	$(RM) $(TEST_FRAGMENTS)

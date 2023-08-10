@@ -3,5 +3,5 @@ package github.com/jonesz/krylov-fut
 require {
   github.com/diku-dk/complex 0.2.0 #19c5afb0931c4cfe4d8f2e9540ba01edd9460639
   github.com/diku-dk/sparse 0.0.12 #0173e0a9111de865ca04f3c49bc7d29ba4806fa5
-  github.com/diku-dk/linalg 0.4.3 #1d412b7cd9d9f95ed99169c696b6736ab24c551d
+  github.com/diku-dk/linalg 0.5.1 #02ac17238bda19049b037fd7e5e49453afef1b59
 }

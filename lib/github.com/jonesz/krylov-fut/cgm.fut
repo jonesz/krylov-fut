@@ -1,85 +1,96 @@
+-- | CGM implementation.
 import "../../diku-dk/linalg/linalg"
-import "../../diku-dk/sparse/compressed"
+
+-- https://futhark-lang.org/examples/matrix-multiplication.html
+local def matmul [n][m][p] 'a
+           (add: a -> a -> a) (mul: a -> a -> a) (zero: a)
+           (A: [n][m]a) (B: [m][p]a) : [n][p]a =
+	map (\A_row ->
+         map (\B_col ->
+                reduce add zero (map2 mul A_row B_col))
+             (transpose B))
+		A
+
+-- Entrywise matrix operations (add, sub).
+local def mat_entrywise [n][m] 'a
+			(op: a -> a -> a) (x: [n][m]a) (y: [n][m]a) : [n][m]a =
+	map2 (map2 (op)) x y
+
+local def mat_map [n][m] 'a 'b (f: a -> b) (x: [n][m]a) : [n][m]b =
+	map (map (f)) x
 
 module type cgm = {
+	-- | The scalar type.
 	type t
-	type~ mat[n]
-
-	type end_criteria = #iterations i64 | #residual t 
-
-	val sparse [nnz] : (n: i64) -> [nnz](i64, i64, t) -> mat[n]
-	val cgm [n] : mat[n] -> [n]t -> [n]t -> end_criteria -> [n]t
+	type criteria = #iter i64 | #residual t
+	val cgm [n] : criteria -> [n][n]t -> [n][1]t -> [n][1]t -> [n][1]t
 }
 
-module mk_cgm_real(T: field): cgm with t = T.t = {
+local module type field_plus_conj_transpose = {
+	include field
+	val conj : t -> t
+	val < : t -> t -> bool -- TODO: Fix some of the linalg field stuff.
+}
+
+module mk_cgm(T: field_plus_conj_transpose): cgm with t = T.t = {
 	type t = T.t
-	type end_criteria = #iterations i64 | #residual t 
+	type criteria = #iter i64 | #residual t
 
-	open (mk_compressed T)
-	type~ mat[n] = sr.mat[n][n]
+	let matmul_t = matmul (T.+) (T.*) (T.i64 0)
+	let matsub_t = mat_entrywise (T.-)
+	let matadd_t = mat_entrywise (T.+)
+	let matscale_t a = mat_map (T.* a)
+
+	let conj_transpose [n] (x: [n][1]t): [1][n]t =
+		transpose x |> mat_map (T.conj)
+
+	-- b - Ax
+	let explicit_residual [n] (A: [n][n]t) (x: [n][1]t) (b: [n][1]t) = 
+		matmul_t A x |> matsub_t b
+				
+	def cgm [n] (c: criteria) (A: [n][n]t) (x: [n][1]t) (b: [n][1]t): [n][1]t =
+
+		-- Single iteration of the CGM method.
+		let inner r_curr p_curr x_curr = 
+
+			-- (r^T * r) / (p^T A p)
+			let alpha [n] (A: [n][n]t) (r: [n][1]t) (p: [n][1]t): t =
+				let top = matmul_t (conj_transpose r) r |> flatten |> head
+				let bot = matmul_t (matmul_t (conj_transpose p) A) p |> flatten |> head
+				in (T./) top bot
+
+			-- (r1^T * r1) / (r0^T / r0)
+			let beta [n] (r0: [n][1]t) (r1: [n][1]t): t =
+				let top = matmul_t (conj_transpose r1) r1 |> flatten |> head
+				let bot = matmul_t (conj_transpose r0) r0 |> flatten |> head
+				in (T./) top bot
+
+			let a = alpha A r_curr p_curr
+			let x_next = matscale_t a p_curr |> matadd_t x_curr              -- xk + ak * pk.
+			let r_next = matsub_t r_curr <| matmul_t (matscale_t a A) p_curr -- rk - ak * A * pk.
+
+			let b = beta r_curr r_next
+			let p_next = matadd_t r_next <| matscale_t b p_curr              -- rk1 + bk * pk.
+			in (r_next, p_next, x_next)
+
+		let loop_residual r p x (residual: t) =
+			let sum_error e = flatten e |> reduce (T.+) (T.i64 0)
+			let loop_condition r k = ((T.<) residual <| sum_error r) && k < 1000 -- TODO: What should the `MAX_ITER` value be?
+			in loop (r_curr, p_curr, x_curr, k) = (r, p, x, 0i64) while loop_condition r_curr k do
+				let (r_next, p_next, x_next) = inner r_curr p_curr x_curr
+				in (r_next, p_next, x_next, k + 1)
+			
+		let loop_iter r p x iterations =  
+			loop (r_curr, p_curr, x_curr, _) = (r, p, x, 0) for _i < iterations do
+				let (r_next, p_next, x_next) = inner r_curr p_curr x_curr
+				in (r_next, p_next, x_next, 0)
 	
-	def sparse [nnz] (n: i64) (coord: [nnz](i64, i64, t)): mat[n] =
-		sr.sparse n n coord
+		let r_curr = explicit_residual A x b
+		let p_curr = r_curr
+		let x_curr = x
 
-	def cgm [n] (A: mat[n]) (x: [n]t) (b: [n]t) (c: end_criteria): [n]t =
-
-		-- b - Ax.
-		let explicit_residual (A: mat[n]) (x: [n]t) (b: [n]t): [n]t =		
-			sr.smvm A x |> map2 (T.-) b
-
-		-- (rk1^T * rk1) / (rk^T * rk)
-		let beta rk rk1 = 
-			let dp x y = map2 (T.*) x y |> reduce (T.+) (T.i64 0)
-			in (dp rk1 rk1) T./ (dp rk rk)
-
-		let proj_krylov (rk) (pk) (xk) =
-			-- A * pk
-			let Apk = sr.smvm A pk
-		
-			-- alpha_k := (r^T * r) / p^T * A * p
-			let alpha_k =
-				let n = map2 (T.*) rk rk |> reduce (T.+) (T.i64 0)
-				let d = Apk -- A is real symmetric: xA = (Ax)^T.
-					|> map2 (T.*) pk 
-					|> reduce (T.+) (T.i64 0)
-				in n T./ d
-
-			-- xk1 = xk + alpha * pk.
-			let xk1 = map (T.* alpha_k) pk |> map2 (T.+) xk
-			-- rk1 = rk - alpha_k * A * pk.
-			let rk1 = map (T.* alpha_k) Apk |> map2 (T.-) rk
-
-			in (xk1, rk1)
-
-		-- Each loop is required to have the same (_, _, _, _) parameter
-		-- structure; hopefully (T.i64 0) will compile down to a no-op.
-
-		-- Compute r iterations.
-		let loop_iter r0 p0 x0 r = 
-			loop (rk, pk, xk, _rk_mag) = (r0, p0, x0, (T.i64 0)) for _i < r do
-				let (xk1, rk1) = proj_krylov rk pk xk
-				let bk = beta rk rk1
-				-- pk1 = rk1 + bk * pk
-				let pk1 = map (T.* bk) pk |> map2 (T.+) rk1
-				in (rk1, pk1, xk1, (T.i64 0))
-
-		
-		-- Loop until a residual < r is found.
-		let loop_residual r0 p0 x0 r =
-			loop (rk, pk, xk, rk_mag) = (r0, p0, x0, reduce (T.+) (T.i64 0) r0) while (T.<) r rk_mag do
-				let (xk1, rk1) = proj_krylov rk pk xk
-				let bk = beta rk rk1
-				-- pk1 = rk1 + bk * pk
-				let pk1 = map (T.* bk) pk |> map2 (T.+) rk1
-				let rk_mag1 = reduce (T.+) (T.i64 0) rk1
-				in (rk1, pk1, xk1, rk_mag1)
-					
-		let r0 = explicit_residual A x b
-		let p0 = r0
-		let x0 = x
-
-		let (_, _, xn, _) = match c
-			case #iterations r -> loop_iter r0 p0 x0 r
-			case #residual r -> loop_residual r0 p0 x0 r
-		in xn
+		let (_, _, x, _) = match c 
+			case #iter k -> loop_iter r_curr p_curr x_curr k
+			case #residual r -> loop_residual r_curr p_curr x_curr r
+		in x
 }
