@@ -52,20 +52,21 @@ local module mk_cgm_inner_preconditioner
     val matvecmul_row [n] : m [n] -> [n]t -> [n]t
   }
   with t = R.t)
-  (P: preconditioner with t = R.t with m [n] = I.m[n])
+  (P: preconditioner with t = R.t with m [n] = I.m [n])
   : cgm with t = I.t with m [n] = I.m [n] = {
   type t = R.t
   type~ m [n] = I.m [n]
   module L = mk_linalg R
 
   def cgm [n] (A: m [n]) b x_0 residual max_iter =
-    let P_inv = P.M A
-
     -- r_0 = b - A * x_0
     let r_0 = I.matvecmul_row A x_0 |> map2 (R.-) b
-    let z_0 = P.solve P_inv b
+    -- z_0 = M^(-1) * r_0
+    let z_0 = P.M A |> flip P.solve b
+    -- p_0 = z_0
+    let p_0 = z_0
     let (x_star, _, _, _, _) =
-      loop (x_k, r_k, p_k, z_k, i) = (x_0, r_0, r_0, z_0, 0i64)
+      loop (x_k, r_k, p_k, z_k, i) = (x_0, r_0, p_0, z_0, 0i64)
       while (L.vecnorm r_k |> (R.<) residual) && i < max_iter do
         -- a_k (r_k^T * z_k) / (p_k^T * A  * p_k)
         let a_k = I.matvecmul_row A p_k |> L.dotprod p_k |> (R./) (L.dotprod r_k z_k)
@@ -73,7 +74,8 @@ local module mk_cgm_inner_preconditioner
         let x_l = L.vecscale a_k p_k |> map2 (R.+) x_k
         -- r_l = r_k - a_k * A * p_k
         let r_l = I.matvecmul_row A p_k |> L.vecscale a_k |> map2 (R.-) r_k
-        let z_l = P.solve P_inv r_l
+        -- z_l = M^(-1) r_l
+        let z_l = P.M A |> flip P.solve r_l
         -- B_k = (r_l^T * z_l) / (r_k^T * z_k)
         let B_k = L.dotprod r_k z_k |> (R./) (L.dotprod r_l z_l)
         -- p_l = r_l + B_k * p_k
@@ -97,4 +99,13 @@ module mk_cgm_symmetric (R: real) (S: symmetric_matrix with t = R.t) : cgm with 
     type~ m [n] = S.mat [n]
     def matvecmul_row = S.smvm
   }
+}
+
+module mk_cgm_symmetric_preconditioner (R: real) (S: symmetric_matrix with t = R.t) (P: preconditioner with t = R.t with m [n] = S.mat [n])
+  : cgm with t = R.t with m [n] = S.mat [n] = {
+  open mk_cgm_inner_preconditioner R {
+    type t = R.t
+    type~ m [n] = S.mat [n]
+    def matvecmul_row = S.smvm
+  } P
 }
