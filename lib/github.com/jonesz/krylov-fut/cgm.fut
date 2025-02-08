@@ -24,14 +24,20 @@ local module mk_cgm_inner
   module L = mk_linalg R
 
   def cgm [n] (A: m [n]) b x_0 residual max_iter =
+    -- r_0 = b - A * x_0
     let r_0 = I.matvecmul_row A x_0 |> map2 (R.-) b
     let (x_star, _, _, _) =
       loop (x_k, r_k, p_k, i) = (x_0, r_0, r_0, 0i64)
-      while ((R.>) (L.vecnorm r_k) residual) && (i < max_iter) do
+      while (L.vecnorm r_k |> (R.<) residual) && i < max_iter do
+        -- a_k (r_k^T * r_k) / (p_k^T * A  * p_k)
         let a_k = I.matvecmul_row A p_k |> L.dotprod p_k |> (R./) (L.dotprod r_k r_k)
+        -- x_l = x_k + a_k * p_k
         let x_l = L.vecscale a_k p_k |> map2 (R.+) x_k
+        -- r_l = r_k - a_k * A * p_k
         let r_l = I.matvecmul_row A p_k |> L.vecscale a_k |> map2 (R.-) r_k
+        -- B_k = (r_l^T * r_l) / (r_k^T * r_k)
         let B_k = L.dotprod r_k r_k |> (R./) (L.dotprod r_l r_l)
+        -- p_l = r_l + B_k * p_k
         let p_l = L.vecscale B_k p_k |> map2 (R.+) r_l
         in (x_l, r_l, p_l, i + 1i64)
     in x_star
