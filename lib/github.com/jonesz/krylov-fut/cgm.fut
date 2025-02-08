@@ -1,16 +1,16 @@
 -- | CGM implementation.
-
 import "../../diku-dk/linalg/linalg"
 
 module type cgm = {
   -- | The scalar type.
   type t
-  val cgm [n] : (A: [n][n]t) -> (b: [n]t) -> (x_0: [n]t) -> (residual: t) -> (max_iter: i64) -> [n]t
+  type m [n]
+  val cgm [n] : (A: [n]m[n]) -> (b: [n]t) -> (x_0: [n]t) -> (residual: t) -> (max_iter: i64) -> [n]t
 }
 
-module mk_cgm (R: real) : cgm with t = R.t = {
+module mk_cgm (R: real) : cgm with t = R.t with m [n] = [n]R.t = {
   type t = R.t
-  type criteria = #iter i64 | #residual t
+  type m [n] = [n]t
   module L = mk_linalg R
 
   def cgm A b x_0 residual max_iter =
