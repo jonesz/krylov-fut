@@ -1,4 +1,5 @@
 TEST_FRAGMENTS = \
+	lib/github.com/jonesz/krylov-fut/preconditioner_test \
 	lib/github.com/jonesz/krylov-fut/cgm_test \
 	lib/github.com/jonesz/krylov-fut/*.c \
 	lib/github.com/jonesz/krylov-fut/*.fut.* \
