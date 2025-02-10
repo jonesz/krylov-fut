@@ -9,8 +9,6 @@ module E = mk_cgm_symmetric f32 S
 module J = mk_jacobi f32 {
   open S
   type~ m [n] = mat [n]
-
-  -- TODO: These `m`/`mat` types should be better named.
   def diag [n] A = map (\i -> idx (i, i) A) (iota n)
 }
 
