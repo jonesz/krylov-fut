@@ -84,28 +84,22 @@ local module mk_cgm_inner_preconditioner
     in x_star
 }
 
-module mk_cgm_dense (R: real) : cgm with t = R.t with m [n] = [n][n]R.t = {
+module mk_cgm_dense (R: real) : cgm with t = R.t with m [n] = [n][n]R.t = mk_cgm_inner R {
   module L = mk_linalg R
-  open mk_cgm_inner R {
-    type t = R.t
-    type m [n] = [n][n]t
-    def matvecmul_row = L.matvecmul_row
-  }
+  type t = R.t
+  type m [n] = [n][n]t
+  def matvecmul_row = L.matvecmul_row
 }
 
-module mk_cgm_symmetric (R: real) (S: symmetric_matrix with t = R.t) : cgm with t = R.t with m [n] = S.mat [n] = {
-  open mk_cgm_inner R {
-    type t = R.t
-    type~ m [n] = S.mat [n]
-    def matvecmul_row = S.smvm
-  }
+module mk_cgm_symmetric (R: real) (S: symmetric_matrix with t = R.t) : cgm with t = R.t with m [n] = S.mat [n] = mk_cgm_inner R {
+  type t = R.t
+  type~ m [n] = S.mat [n]
+  def matvecmul_row = S.smvm
 }
 
 module mk_cgm_symmetric_preconditioner (R: real) (S: symmetric_matrix with t = R.t) (P: preconditioner with t = R.t with m [n] = S.mat [n])
-  : cgm with t = R.t with m [n] = S.mat [n] = {
-  open mk_cgm_inner_preconditioner R {
-    type t = R.t
-    type~ m [n] = S.mat [n]
-    def matvecmul_row = S.smvm
-  } P
-}
+  : cgm with t = R.t with m [n] = S.mat [n] = mk_cgm_inner_preconditioner R {
+  type t = R.t
+  type~ m [n] = S.mat [n]
+  def matvecmul_row = S.smvm
+} P
