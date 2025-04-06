@@ -1,1 +1,1 @@
-Krylov methods in Futhark.
+a simple CGM impl.
